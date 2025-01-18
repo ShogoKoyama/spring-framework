@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import io.micrometer.observation.ObservationRegistry;
 import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Flowable;
 import org.junit.jupiter.api.Test;
@@ -41,6 +42,10 @@ import static org.springframework.scheduling.annotation.ScheduledAnnotationReact
 import static org.springframework.scheduling.annotation.ScheduledAnnotationReactiveSupport.getPublisherFor;
 import static org.springframework.scheduling.annotation.ScheduledAnnotationReactiveSupport.isReactive;
 
+/**
+ * @author Simon Baslé
+ * @since 6.1
+ */
 class ScheduledAnnotationReactiveSupportTests {
 
 	@Test
@@ -49,8 +54,9 @@ class ScheduledAnnotationReactiveSupportTests {
 	}
 
 	@ParameterizedTest
+	// Note: monoWithParams can't be found by this test.
 	@ValueSource(strings = { "mono", "flux", "monoString", "fluxString", "publisherMono",
-			"publisherString", "monoThrows", "flowable", "completable" }) //note: monoWithParams can't be found by this test
+			"publisherString", "monoThrows", "flowable", "completable" })
 	void checkIsReactive(String method) {
 		Method m = ReflectionUtils.findMethod(ReactiveMethods.class, method);
 		assertThat(isReactive(m)).as(m.getName()).isTrue();
@@ -60,8 +66,7 @@ class ScheduledAnnotationReactiveSupportTests {
 	void checkNotReactive() {
 		Method string = ReflectionUtils.findMethod(ReactiveMethods.class, "oops");
 
-		assertThat(isReactive(string))
-				.as("String-returning").isFalse();
+		assertThat(isReactive(string)).as("String-returning").isFalse();
 	}
 
 	@Test
@@ -76,7 +81,7 @@ class ScheduledAnnotationReactiveSupportTests {
 	void isReactiveRejectsWithParams() {
 		Method m = ReflectionUtils.findMethod(ReactiveMethods.class, "monoWithParam", String.class);
 
-		//isReactive rejects with context
+		// isReactive rejects with context
 		assertThatIllegalArgumentException().isThrownBy(() -> isReactive(m))
 				.withMessage("Reactive methods may only be annotated with @Scheduled if declared without arguments")
 				.withNoCause();
@@ -87,7 +92,7 @@ class ScheduledAnnotationReactiveSupportTests {
 		ReactiveMethods target = new ReactiveMethods();
 		Method m = ReflectionUtils.findMethod(ReactiveMethods.class, "monoThrows");
 
-		//static helper method
+		// static helper method
 		assertThatIllegalArgumentException().isThrownBy(() -> getPublisherFor(m, target))
 				.withMessage("Cannot obtain a Publisher-convertible value from the @Scheduled reactive method")
 				.withCause(new IllegalStateException("expected"));
@@ -98,7 +103,7 @@ class ScheduledAnnotationReactiveSupportTests {
 		ReactiveMethods target = new ReactiveMethods();
 		Method m = ReflectionUtils.findMethod(ReactiveMethods.class, "monoThrowsIllegalAccess");
 
-		//static helper method
+		// static helper method
 		assertThatIllegalArgumentException().isThrownBy(() -> getPublisherFor(m, target))
 				.withMessage("Cannot obtain a Publisher-convertible value from the @Scheduled reactive method")
 				.withCause(new IllegalAccessException("expected"));
@@ -112,12 +117,12 @@ class ScheduledAnnotationReactiveSupportTests {
 		Scheduled fixedDelayLong = AnnotationUtils.synthesizeAnnotation(Map.of("fixedDelay", 123L), Scheduled.class, null);
 		List<Runnable> tracker = new ArrayList<>();
 
-		assertThat(createSubscriptionRunnable(m, target, fixedDelayString, tracker))
+		assertThat(createSubscriptionRunnable(m, target, fixedDelayString, () -> ObservationRegistry.NOOP, tracker))
 				.isInstanceOfSatisfying(ScheduledAnnotationReactiveSupport.SubscribingRunnable.class, sr ->
 						assertThat(sr.shouldBlock).as("fixedDelayString.shouldBlock").isTrue()
 				);
 
-		assertThat(createSubscriptionRunnable(m, target, fixedDelayLong, tracker))
+		assertThat(createSubscriptionRunnable(m, target, fixedDelayLong, () -> ObservationRegistry.NOOP, tracker))
 				.isInstanceOfSatisfying(ScheduledAnnotationReactiveSupport.SubscribingRunnable.class, sr ->
 						assertThat(sr.shouldBlock).as("fixedDelayLong.shouldBlock").isTrue()
 				);
@@ -131,12 +136,12 @@ class ScheduledAnnotationReactiveSupportTests {
 		Scheduled fixedRateLong = AnnotationUtils.synthesizeAnnotation(Map.of("fixedRate", 123L), Scheduled.class, null);
 		List<Runnable> tracker = new ArrayList<>();
 
-		assertThat(createSubscriptionRunnable(m, target, fixedRateString, tracker))
+		assertThat(createSubscriptionRunnable(m, target, fixedRateString, () -> ObservationRegistry.NOOP, tracker))
 				.isInstanceOfSatisfying(ScheduledAnnotationReactiveSupport.SubscribingRunnable.class, sr ->
 						assertThat(sr.shouldBlock).as("fixedRateString.shouldBlock").isFalse()
 				);
 
-		assertThat(createSubscriptionRunnable(m, target, fixedRateLong, tracker))
+		assertThat(createSubscriptionRunnable(m, target, fixedRateLong, () -> ObservationRegistry.NOOP, tracker))
 				.isInstanceOfSatisfying(ScheduledAnnotationReactiveSupport.SubscribingRunnable.class, sr ->
 						assertThat(sr.shouldBlock).as("fixedRateLong.shouldBlock").isFalse()
 				);
@@ -149,7 +154,7 @@ class ScheduledAnnotationReactiveSupportTests {
 		Scheduled cron = AnnotationUtils.synthesizeAnnotation(Map.of("cron", "-"), Scheduled.class, null);
 		List<Runnable> tracker = new ArrayList<>();
 
-		assertThat(createSubscriptionRunnable(m, target, cron, tracker))
+		assertThat(createSubscriptionRunnable(m, target, cron, () -> ObservationRegistry.NOOP, tracker))
 				.isInstanceOfSatisfying(ScheduledAnnotationReactiveSupport.SubscribingRunnable.class, sr ->
 						assertThat(sr.shouldBlock).as("cron.shouldBlock").isFalse()
 				);
@@ -165,8 +170,20 @@ class ScheduledAnnotationReactiveSupportTests {
 				.as("checkpoint class")
 				.isEqualTo("reactor.core.publisher.FluxOnAssembly");
 
-		assertThat(p).hasToString("checkpoint(\"@Scheduled 'mono()' in bean 'org.springframework.scheduling.annotation.ScheduledAnnotationReactiveSupportTests$ReactiveMethods'\")");
+		assertThat(p).hasToString("checkpoint(\"@Scheduled 'mono()' in 'org.springframework.scheduling.annotation.ScheduledAnnotationReactiveSupportTests$ReactiveMethods'\")");
 	}
+
+	@Test
+	void shouldProvideToString() {
+		ReactiveMethods target = new ReactiveMethods();
+		Method m = ReflectionUtils.findMethod(ReactiveMethods.class, "mono");
+		Scheduled cron = AnnotationUtils.synthesizeAnnotation(Map.of("cron", "-"), Scheduled.class, null);
+		List<Runnable> tracker = new ArrayList<>();
+
+		assertThat(createSubscriptionRunnable(m, target, cron, () -> ObservationRegistry.NOOP, tracker))
+				.hasToString("org.springframework.scheduling.annotation.ScheduledAnnotationReactiveSupportTests$ReactiveMethods.mono");
+	}
+
 
 	static class ReactiveMethods {
 
@@ -211,7 +228,7 @@ class ScheduledAnnotationReactiveSupportTests {
 		}
 
 		public Mono<Void> monoThrowsIllegalAccess() throws IllegalAccessException {
-			//simulate a reflection issue
+			// simulate a reflection issue
 			throw new IllegalAccessException("expected");
 		}
 
@@ -226,13 +243,12 @@ class ScheduledAnnotationReactiveSupportTests {
 		AtomicInteger subscription = new AtomicInteger();
 
 		public Mono<Void> trackingMono() {
-			return Mono.<Void>empty()
-					.doOnSubscribe(s -> subscription.incrementAndGet());
+			return Mono.<Void>empty().doOnSubscribe(s -> subscription.incrementAndGet());
 		}
 
 		public Mono<Void> monoError() {
 			return Mono.error(new IllegalStateException("expected"));
 		}
-
 	}
+
 }

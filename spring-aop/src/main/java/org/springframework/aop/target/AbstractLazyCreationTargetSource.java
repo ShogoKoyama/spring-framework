@@ -18,9 +18,9 @@ package org.springframework.aop.target;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.jspecify.annotations.Nullable;
 
 import org.springframework.aop.TargetSource;
-import org.springframework.lang.Nullable;
 
 /**
  * {@link org.springframework.aop.TargetSource} implementation that will
@@ -46,8 +46,7 @@ public abstract class AbstractLazyCreationTargetSource implements TargetSource {
 	protected final Log logger = LogFactory.getLog(getClass());
 
 	/** The lazily initialized target object. */
-	@Nullable
-	private Object lazyTarget;
+	private @Nullable Object lazyTarget;
 
 
 	/**
@@ -67,14 +66,8 @@ public abstract class AbstractLazyCreationTargetSource implements TargetSource {
 	 * @see #isInitialized()
 	 */
 	@Override
-	@Nullable
-	public synchronized Class<?> getTargetClass() {
+	public synchronized @Nullable Class<?> getTargetClass() {
 		return (this.lazyTarget != null ? this.lazyTarget.getClass() : null);
-	}
-
-	@Override
-	public boolean isStatic() {
-		return false;
 	}
 
 	/**
@@ -89,11 +82,6 @@ public abstract class AbstractLazyCreationTargetSource implements TargetSource {
 			this.lazyTarget = createObject();
 		}
 		return this.lazyTarget;
-	}
-
-	@Override
-	public void releaseTarget(Object target) throws Exception {
-		// nothing to do
 	}
 
 

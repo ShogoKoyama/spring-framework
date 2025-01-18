@@ -18,8 +18,9 @@ package org.springframework.aop.target;
 
 import java.io.Serializable;
 
+import org.jspecify.annotations.Nullable;
+
 import org.springframework.aop.TargetSource;
-import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 
 /**
@@ -67,18 +68,8 @@ public class HotSwappableTargetSource implements TargetSource, Serializable {
 	}
 
 	@Override
-	public final boolean isStatic() {
-		return false;
-	}
-
-	@Override
 	public synchronized Object getTarget() {
 		return this.target;
-	}
-
-	@Override
-	public void releaseTarget(Object target) {
-		// nothing to do
 	}
 
 
