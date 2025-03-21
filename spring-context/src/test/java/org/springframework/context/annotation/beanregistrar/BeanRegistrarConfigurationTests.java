@@ -24,12 +24,14 @@ import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.support.RootBeanDefinition;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.testfixture.beans.factory.GenericBeanRegistrar;
+import org.springframework.context.testfixture.beans.factory.ImportAwareBeanRegistrar;
 import org.springframework.context.testfixture.beans.factory.SampleBeanRegistrar.Bar;
 import org.springframework.context.testfixture.beans.factory.SampleBeanRegistrar.Baz;
 import org.springframework.context.testfixture.beans.factory.SampleBeanRegistrar.Foo;
 import org.springframework.context.testfixture.beans.factory.SampleBeanRegistrar.Init;
 import org.springframework.context.testfixture.context.annotation.registrar.BeanRegistrarConfiguration;
 import org.springframework.context.testfixture.context.annotation.registrar.GenericBeanRegistrarConfiguration;
+import org.springframework.context.testfixture.context.annotation.registrar.ImportAwareBeanRegistrarConfiguration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -45,6 +47,7 @@ public class BeanRegistrarConfigurationTests {
 	void beanRegistrar() {
 		AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext(BeanRegistrarConfiguration.class);
 		assertThat(context.getBean(Bar.class).foo()).isEqualTo(context.getBean(Foo.class));
+		assertThat(context.getBean("foo", Foo.class)).isEqualTo(context.getBean("fooAlias", Foo.class));
 		assertThatThrownBy(() -> context.getBean(Baz.class)).isInstanceOf(NoSuchBeanDefinitionException.class);
 		assertThat(context.getBean(Init.class).initialized).isTrue();
 		BeanDefinition beanDefinition = context.getBeanDefinition("bar");
@@ -79,6 +82,15 @@ public class BeanRegistrarConfigurationTests {
 		context.refresh();
 		RootBeanDefinition beanDefinition = (RootBeanDefinition)context.getBeanDefinition("fooSupplier");
 		assertThat(beanDefinition.getResolvableType().resolveGeneric(0)).isEqualTo(GenericBeanRegistrar.Foo.class);
+	}
+
+	@Test
+	void beanRegistrarWithImportAware() {
+		AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
+		context.register(ImportAwareBeanRegistrarConfiguration.class);
+		context.refresh();
+		assertThat(context.getBean(ImportAwareBeanRegistrar.ClassNameHolder.class).className())
+				.isEqualTo(ImportAwareBeanRegistrarConfiguration.class.getName());
 	}
 
 }

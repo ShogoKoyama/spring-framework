@@ -107,8 +107,8 @@ class ConfigurationClassParser {
 			(className.startsWith("java.lang.annotation.") || className.startsWith("org.springframework.stereotype."));
 
 	private static final Predicate<Condition> REGISTER_BEAN_CONDITION_FILTER = condition ->
-			(condition instanceof ConfigurationCondition configurationCondition
-					&& ConfigurationPhase.REGISTER_BEAN.equals(configurationCondition.getConfigurationPhase()));
+			(condition instanceof ConfigurationCondition configurationCondition &&
+				ConfigurationPhase.REGISTER_BEAN.equals(configurationCondition.getConfigurationPhase()));
 
 	private static final Comparator<DeferredImportSelectorHolder> DEFERRED_IMPORT_COMPARATOR =
 			(o1, o2) -> AnnotationAwareOrderComparator.INSTANCE.compare(o1.getImportSelector(), o2.getImportSelector());
@@ -602,7 +602,11 @@ class ConfigurationClassParser {
 					else if (candidate.isAssignable(BeanRegistrar.class)) {
 						Class<?> candidateClass = candidate.loadClass();
 						BeanRegistrar registrar = (BeanRegistrar) BeanUtils.instantiateClass(candidateClass);
-						configClass.addBeanRegistrar(registrar);
+						AnnotationMetadata metadata = currentSourceClass.getMetadata();
+						if (registrar instanceof ImportAware importAware) {
+							importAware.setImportMetadata(metadata);
+						}
+						configClass.addBeanRegistrar(metadata.getClassName(), registrar);
 					}
 					else if (candidate.isAssignable(ImportBeanDefinitionRegistrar.class)) {
 						// Candidate class is an ImportBeanDefinitionRegistrar ->
